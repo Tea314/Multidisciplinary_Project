@@ -1,11 +1,16 @@
 import streamlit as st
 from ultralytics import YOLO
 import cv2
+import torch
 import tempfile
 import numpy as np
 import os
 from PIL import Image
 import time
+import requests
+from datetime import datetime, timezone
+# from torch.serialization import add_safe_globals
+# from ultralytics.nn.tasks import SegmentationModel
 
 # Set page configuration
 st.set_page_config(
@@ -16,59 +21,38 @@ st.set_page_config(
 
 # Custom CSS for better styling
 
-
 def add_custom_css():
     st.markdown("""
     <style>
-    .main {
-        background-color: #f5f7f9;
+    body {
+        background-color: #f2f4f8;
+        font-family: 'Segoe UI', sans-serif;
     }
     .stApp {
         max-width: 1200px;
-        margin: 0 auto;
-    }
-    .upload-container {
-        background-color: #ffffff;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 10px;
-    }
-    .result-container {
-        background-color: #ffffff;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
-        border-radius: 5px;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
+        margin: auto;
+        padding: 2rem;
     }
     .title {
         color: #2c3e50;
-        font-weight: bold;
+        font-weight: 700;
         text-align: center;
+        font-size: 2.5rem;
+        margin-bottom: 0.5rem;
     }
     .subtitle {
-        color: #34495e;
+        color: #636e72;
         text-align: center;
-    }
-    .stProgress > div > div > div {
-        background-color: #4CAF50;
+        font-size: 1.2rem;
+        margin-bottom: 2rem;
     }
     .option-card {
         background-color: #ffffff;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
         text-align: center;
-        cursor: pointer;
-        transition: transform 0.3s;
+        transition: all 0.2s ease-in-out;
     }
     .option-card:hover {
         transform: translateY(-5px);
@@ -78,8 +62,45 @@ def add_custom_css():
         margin-bottom: 10px;
     }
     .card-title {
-        font-weight: bold;
+        font-weight: 600;
+        font-size: 1.1rem;
         color: #2c3e50;
+        margin-bottom: 5px;
+    }
+    .stButton>button {
+        background-color: #0984e3;
+        color: white;
+        font-weight: bold;
+        border-radius: 8px;
+        padding: 0.6rem 1.2rem;
+        font-size: 16px;
+        transition: background-color 0.3s ease;
+    }
+    .stButton>button:hover {
+        background-color: #74b9ff;
+        color: black;
+    }
+    .stProgress > div > div > div {
+        background-color: #0984e3;
+    }
+    .result-container {
+        background-color: #ffffff;
+        border-radius: 10px;
+        padding: 20px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+        margin-top: 2rem;
+    }
+    .highlight-success {
+        color: green;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
+    }
+    .highlight-error {
+        color: red;
+        font-size: 18px;
+        font-weight: bold;
+        text-align: center;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -190,6 +211,24 @@ else:
             with col2:
                 process_button = st.button("Process Image")
             st.markdown("</div>", unsafe_allow_html=True)
+        def send_fault_to_backend(product_id, fault_type, confidence, detected_at, image_url):
+            payload = {
+                "product_id": product_id,
+                "fault_type": fault_type,
+                "confidence": confidence,
+                "detected_at": detected_at,
+                "image_url": image_url
+            }
+
+            try:
+                # DÙNG "backend" thay vì localhost nếu chạy bằng docker-compose
+                response = requests.post("http://backend:8080/api/v1/faults", json=payload)
+                if response.status_code == 201:
+                    st.markdown("<div class='highlight-success'>✅ Fault record saved to backend!</div>", unsafe_allow_html=True)
+                else:
+                    st.markdown("<div class='highlight-error'>❌ Failed to connect to backend</div>", unsafe_allow_html=True)
+            except Exception as e:
+                st.error(f"⚠️ Error connecting to backend: {e}")
 
         # Process the image when button is clicked and file is uploaded
         if uploaded_file is not None and process_button:
@@ -220,6 +259,20 @@ else:
                 # Store the processed image
                 st.session_state.processed_image = segmented_image
                 st.session_state.processing_complete = True
+                        # Lấy confidence trung bình từ YOLO (ví dụ)
+                conf = float(results[0].boxes.conf.mean())
+                fault_type = "crack"  # giả sử cố định, hoặc bạn có logic phân loại
+                detected_at = datetime.now(timezone.utc).isoformat()
+                image_url = "http://example.com/image.jpg"  # bạn cần upload ảnh và lấy URL thực tế nếu có
+
+                # Gửi lên backend
+                send_fault_to_backend(
+                    product_id="prod123",
+                    fault_type=fault_type,
+                    confidence=conf,
+                    detected_at=detected_at,
+                    image_url=image_url
+                )
                 with st.sidebar:
                     st.markdown(
                         f"**Processing Time:** {st.session_state.processing_time:.2f} seconds")
