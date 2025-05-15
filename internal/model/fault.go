@@ -12,5 +12,6 @@ type Fault struct {
 	FaultType  string             `bson:"fault_type"    json:"fault_type"` // e.g., "crack", "scratch"
 	Confidence float64            `bson:"confidence"    json:"confidence"`
 	DetectedAt time.Time          `bson:"detected_at"   json:"detected_at"`
+	ProcessingTime float64        `bson:"processing_time" json:"processing_time"`
 	ImageURL   string             `bson:"image_url"     json:"image_url"` // URL ảnh lỗi
 }

@@ -1,7 +1,5 @@
 import streamlit as st
 from ultralytics import YOLO
-import cv2
-import torch
 import tempfile
 import numpy as np
 import os
@@ -9,6 +7,7 @@ from PIL import Image
 import time
 import requests
 from datetime import datetime, timezone
+import math
 # from torch.serialization import add_safe_globals
 # from ultralytics.nn.tasks import SegmentationModel
 
@@ -211,12 +210,16 @@ else:
             with col2:
                 process_button = st.button("Process Image")
             st.markdown("</div>", unsafe_allow_html=True)
-        def send_fault_to_backend(product_id, fault_type, confidence, detected_at, image_url):
+        def send_fault_to_backend(product_id, fault_type, confidence, detected_at,processing_time, image_url):
+            if confidence is None or (isinstance(confidence, float) and math.isnan(confidence)):
+                fault_type = "No Fault"
+                confidence = 0.0  # Gán giá trị float hợp lệ
             payload = {
                 "product_id": product_id,
                 "fault_type": fault_type,
                 "confidence": confidence,
                 "detected_at": detected_at,
+                "processing_time" : processing_time,
                 "image_url": image_url
             }
 
@@ -228,6 +231,7 @@ else:
                 else:
                     st.markdown("<div class='highlight-error'>❌ Failed to connect to backend</div>", unsafe_allow_html=True)
             except Exception as e:
+                st.markdown(f"Data transfer is: {fault_type}, {confidence}, {detected_at}, {processing_time}, {image_url}  ", unsafe_allow_html=True)
                 st.error(f"⚠️ Error connecting to backend: {e}")
 
         # Process the image when button is clicked and file is uploaded
@@ -266,11 +270,13 @@ else:
                 image_url = "http://example.com/image.jpg"  # bạn cần upload ảnh và lấy URL thực tế nếu có
 
                 # Gửi lên backend
+                print(f"Sending fault to backend: {fault_type}, {conf}, {detected_at}, {image_url}")
                 send_fault_to_backend(
                     product_id="prod123",
                     fault_type=fault_type,
                     confidence=conf,
                     detected_at=detected_at,
+                    processing_time=st.session_state.processing_time,
                     image_url=image_url
                 )
                 with st.sidebar:
