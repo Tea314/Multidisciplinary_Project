@@ -8,6 +8,9 @@ from PIL import Image
 import time
 import io
 
+import requests
+from datetime import datetime, timezone
+import math
 def predict_json_from_imagefile(file) -> dict:
     """Takes a binary file (like UploadFile.file) and returns detections as JSON."""
     image = Image.open(file).convert("RGB")
@@ -28,6 +31,37 @@ def predict_image_from_imagefile(file) -> bytes:
     Image.fromarray(img).save(buf, format="PNG")
     return buf.getvalue()
 
+def send_fault_to_backend(product_id, fault_type, confidence, detected_at,processing_time, image_url):
+    if confidence is None or (isinstance(confidence, float) and math.isnan(confidence)):
+        fault_type = "No Fault"
+        confidence = 0.0  # Gán giá trị float hợp lệ
+    payload = {
+        "product_id": product_id,
+        "fault_type": fault_type,
+        "confidence": confidence,
+        "detected_at": detected_at,
+        "processing_time" : processing_time,
+        "image_url": image_url
+    }
+    try:
+        response = requests.post("http://backend:8080/api/v1/faults", json=payload)
+        if response.status_code == 201:
+            st.markdown("<div class='highlight-success'>✅ Fault record saved to backend!</div>", unsafe_allow_html=True)
+        else:
+            st.markdown("<div class='highlight-error'>❌ Failed to connect to backend</div>", unsafe_allow_html=True)
+    except Exception as e:
+        st.markdown(f"Data transfer is: {fault_type}, {confidence}, {detected_at}, {processing_time}, {image_url}  ", unsafe_allow_html=True)
+        st.error(f"⚠️ Error connecting to backend: {e}")
+
+def format_fault_type(raw_fault_type):
+
+    if raw_fault_type.startswith("np.str_('") and raw_fault_type.endswith("')"):
+        fault_type = raw_fault_type[9:-2]  
+    else:
+        fault_type = raw_fault_type  
+    words = fault_type.split('_')  
+    formatted_words = [word.capitalize() for word in words]  
+    return ' '.join(formatted_words)
 
 # Set page configuration
 st.set_page_config(
@@ -40,72 +74,170 @@ st.set_page_config(
 
 
 def add_custom_css():
-    st.markdown("""
-    <style>
-    .main {
-        background-color: #f5f7f9;
-    }
-    .stApp {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
-    .upload-container {
-        background-color: #ffffff;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 10px;
-    }
-    .result-container {
-        background-color: #ffffff;
-        border-radius: 10px;
-        padding: 20px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-    .stButton>button {
-        background-color: #4CAF50;
-        color: white;
-        font-weight: bold;
-        border-radius: 5px;
-    }
-    .stButton>button:hover {
-        background-color: #45a049;
-    }
-    .title {
-        color: #2c3e50;
-        font-weight: bold;
-        text-align: center;
-    }
-    .subtitle {
-        color: #34495e;
-        text-align: center;
-    }
-    .stProgress > div > div > div {
-        background-color: #4CAF50;
-    }
-    .option-card {
-        background-color: #ffffff;
-        border-radius: 10px;
-        padding: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        text-align: center;
-        cursor: pointer;
-        transition: transform 0.3s;
-    }
-    .option-card:hover {
-        transform: translateY(-5px);
-    }
-    .card-icon {
-        font-size: 2.5rem;
-        margin-bottom: 10px;
-    }
-    .card-title {
-        font-weight: bold;
-        color: #2c3e50;
-    }
-    </style>
-    """, unsafe_allow_html=True)
 
+    st.markdown("""
+
+    <style>
+
+    body {
+
+        background-color: #f2f4f8;
+
+        font-family: 'Segoe UI', sans-serif;
+
+    }
+
+    .stApp {
+
+        max-width: 1200px;
+
+        margin: auto;
+
+        padding: 2rem;
+
+    }
+
+    .title {
+
+        color: #2c3e50;
+
+        font-weight: 700;
+
+        text-align: center;
+
+        font-size: 2.5rem;
+
+        margin-bottom: 0.5rem;
+
+    }
+
+    .subtitle {
+
+        color: #636e72;
+
+        text-align: center;
+
+        font-size: 1.2rem;
+
+        margin-bottom: 2rem;
+
+    }
+
+    .option-card {
+
+        background-color: #ffffff;
+
+        border-radius: 12px;
+
+        padding: 20px;
+
+        box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+
+        text-align: center;
+
+        transition: all 0.2s ease-in-out;
+
+    }
+
+    .option-card:hover {
+
+        transform: translateY(-5px);
+
+    }
+
+    .card-icon {
+
+        font-size: 2.5rem;
+
+        margin-bottom: 10px;
+
+    }
+
+    .card-title {
+
+        font-weight: 600;
+
+        font-size: 1.1rem;
+
+        color: #2c3e50;
+
+        margin-bottom: 5px;
+
+    }
+
+    .stButton>button {
+
+        background-color: #0984e3;
+
+        color: white;
+
+        font-weight: bold;
+
+        border-radius: 8px;
+
+        padding: 0.6rem 1.2rem;
+
+        font-size: 16px;
+
+        transition: background-color 0.3s ease;
+
+    }
+
+    .stButton>button:hover {
+
+        background-color: #74b9ff;
+
+        color: black;
+
+    }
+
+    .stProgress > div > div > div {
+
+        background-color: #0984e3;
+
+    }
+
+    .result-container {
+
+        background-color: #ffffff;
+
+        border-radius: 10px;
+
+        padding: 20px;
+
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+
+        margin-top: 2rem;
+
+    }
+
+    .highlight-success {
+
+        color: green;
+
+        font-size: 18px;
+
+        font-weight: bold;
+
+        text-align: center;
+
+    }
+
+    .highlight-error {
+
+        color: red;
+
+        font-size: 18px;
+
+        font-weight: bold;
+
+        text-align: center;
+
+    }
+
+    </style>
+
+    """, unsafe_allow_html=True)
 
 add_custom_css()
 
@@ -236,6 +368,30 @@ else:
                 # Store the processed image
                 st.session_state.processed_image = segmented_image
                 st.session_state.processing_complete = True
+
+                if results[0].boxes:
+                    class_id = int(results[0].boxes.cls[0])
+                    fault_type = st.session_state.model.names[class_id]
+                    fault_type = format_fault_type(fault_type)
+                    conf = float(results[0].boxes.conf[0])  # Lấy confidence của box đầu tiên
+                else:
+                    fault_type = "No Fault"
+                    conf = 0.0
+
+                detected_at = datetime.now(timezone.utc).isoformat()
+                image_url = "http://example.com/image.jpg"  # bạn cần upload ảnh và lấy URL thực tế nếu có
+
+                # Gửi lên backend
+                print("Model class names:", st.session_state.model.names)
+                print(f"Sending fault to backend: {fault_type}, {conf}, {detected_at}, {image_url}")
+                send_fault_to_backend(
+                    product_id="prod123",
+                    fault_type=fault_type,
+                    confidence=conf,
+                    detected_at=detected_at,
+                    processing_time=st.session_state.processing_time,
+                    image_url=image_url
+                )
                 with st.sidebar:
                     st.markdown(
                         f"**Processing Time:** {st.session_state.processing_time:.2f} seconds")
